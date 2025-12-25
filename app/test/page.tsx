@@ -135,6 +135,16 @@ export default function TestPage() {
     setFormData(prev => ({ ...prev, items: newItems }));
   };
 
+  const getStockStatus = (productId: string, requestedQty: number) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return null;
+    
+    if (product.stock === 0) return { message: '⚠️ Out of stock', color: 'text-destructive' };
+    if (product.stock < requestedQty) return { message: `⚠️ Only ${product.stock} available`, color: 'text-destructive' };
+    if (product.stock <= 10) return { message: `✓ Low stock (${product.stock})`, color: 'text-orange-500' };
+    return { message: `✓ In stock (${product.stock})`, color: 'text-green-600' };
+  };
+
   const addItem = () => {
     setFormData(prev => ({
       ...prev,
@@ -170,10 +180,27 @@ export default function TestPage() {
       return;
     }
 
+    // Validate stock availability for all items
+    const stockIssues: string[] = [];
+    formData.items.forEach((item, index) => {
+      const product = products.find(p => p.id === item.productId);
+      if (product) {
+        if (product.stock < item.quantity) {
+          stockIssues.push(
+            `Item ${index + 1} (${product.name}): Requested ${item.quantity}, but only ${product.stock} available in stock`
+          );
+        }
+      }
+    });
+
+    if (stockIssues.length > 0) {
+      alert('❌ Insufficient stock:\n\n' + stockIssues.join('\n'));
+      return;
+    }
+
     setLoading(true);
     try {
-      // Create order without checking stock
-      // Stock will be checked when order is treated in clients page
+      // Create order - stock will be deducted when order is processed
       await addDoc(collection(db, 'orders'), {
         clientId: formData.clientId,
         clientCIN: formData.clientCIN,
@@ -348,12 +375,22 @@ export default function TestPage() {
                         </SelectTrigger>
                         <SelectContent>
                           {products.map(product => (
-                            <SelectItem key={product.id} value={product.id}>
+                            <SelectItem 
+                              key={product.id} 
+                              value={product.id}
+                              disabled={product.stock === 0}
+                            >
                               {product.name} (Stock: {product.stock})
+                              {product.stock === 0 && ' - OUT OF STOCK'}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                      {item.productId && (
+                        <p className={`text-xs font-medium ${getStockStatus(item.productId, item.quantity)?.color}`}>
+                          {getStockStatus(item.productId, item.quantity)?.message}
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-2">

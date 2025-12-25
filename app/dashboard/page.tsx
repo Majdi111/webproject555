@@ -93,7 +93,7 @@ function AnimatedCounter({
   const displayRef = useRef<HTMLSpanElement>(null)
   
   useEffect(() => {
-    const isMonetary = typeof value === 'string' && value.includes('DT')
+    const isMonetary = typeof value === 'string' && value.includes('Dt')
     const numericValue = typeof value === 'string' 
       ? parseFloat(value.replace(/[^0-9.]/g, '')) 
       : value
@@ -102,7 +102,7 @@ function AnimatedCounter({
       duration,
       ease: "easeOut",
       onUpdate(latest) {
-        const formatted = Math.floor(latest).toLocaleString()
+        const formatted = isMonetary ? latest.toFixed(2) : Math.floor(latest).toLocaleString()
         const displayValue = isMonetary ? `${formatted} Dt` : formatted
         
         

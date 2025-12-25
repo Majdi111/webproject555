@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 import AddProductDialog from "./add-product-form/AddProductDialog";
+import EditProductDialog from "./edit-product-form/EditProductDialog";
 import DeleteProductDialog from "./delete-product-dialog/DeleteProductDialog";
 
 function formatPriceDT(value: number) {
@@ -155,7 +156,7 @@ function StatsCard({
 }
 
 // Product Card Component
-function ProductCard({ product, index, onDelete }: { product: Product; index: number; onDelete?: (id: string, name: string) => void }) {
+function ProductCard({ product, index, onEdit, onDelete }: { product: Product; index: number; onEdit?: (product: Product) => void; onDelete?: (id: string, name: string) => void }) {
   const getStatusVariant = (status: string): "default" | "secondary" | "destructive" => {
     switch(status) {
       case "In Stock": return "default";
@@ -284,7 +285,7 @@ function ProductCard({ product, index, onDelete }: { product: Product; index: nu
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: 0.05 + index * 0.02 }}
-              className="mb-4"
+              className="mb-4 min-h-[80px] flex items-center justify-center"
             >
               <motion.div
                 whileHover={{ scale: 1.02 }}
@@ -349,21 +350,9 @@ function ProductCard({ product, index, onDelete }: { product: Product; index: nu
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-9 w-9 rounded-full border border-primary/20 bg-gradient-to-br from-primary/15 via-background to-primary/5 shadow-sm transition-shadow hover:shadow-md"
-                  title="View Details"
-                >
-                  <motion.div whileHover={{ rotate: -10, scale: 1.05 }} transition={{ duration: 0.2 }}>
-                    <Eye className="h-4 w-4" />
-                  </motion.div>
-                </Button>
-              </motion.div>
-              
-              <motion.div whileHover={{ scale: 1.06, y: -1 }} whileTap={{ scale: 0.96 }}>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
                   className="h-9 w-9 rounded-full border border-primary/20 bg-gradient-to-br from-primary/10 via-background to-primary/0 shadow-sm transition-shadow hover:shadow-md"
                   title="Edit Product"
+                  onClick={() => onEdit?.(product)}
                 >
                   <motion.div whileHover={{ rotate: 12, scale: 1.05 }} transition={{ duration: 0.2 }}>
                     <Edit className="h-4 w-4" />
@@ -401,6 +390,8 @@ export default function ProductsPage() {
   const [statusFilter, setStatusFilter] = useState<"All" | "In Stock" | "Low Stock" | "Out of Stock" | "Arriving Soon">("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
+  const [isEditProductDialogOpen, setIsEditProductDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deleteDialogState, setDeleteDialogState] = useState<{ isOpen: boolean; productId: string; productName: string }>({
     isOpen: false,
     productId: "",
@@ -441,6 +432,11 @@ export default function ProductsPage() {
       productId,
       productName,
     });
+  };
+
+  const handleEditProduct = (product: Product) => {
+    setEditingProduct(product);
+    setIsEditProductDialogOpen(true);
   };
 
   const confirmDeleteProduct = async () => {
@@ -650,7 +646,7 @@ export default function ProductsPage() {
       {viewMode === "grid" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredProducts.map((product, index) => (
-            <ProductCard key={product.id} product={product} index={index} onDelete={handleDeleteProduct} />
+            <ProductCard key={product.id} product={product} index={index} onEdit={handleEditProduct} onDelete={handleDeleteProduct} />
           ))}
         </div>
       )}
@@ -765,18 +761,8 @@ export default function ProductsPage() {
                               variant="ghost" 
                               size="icon" 
                               className="h-9 w-9"
-                              title="View Details"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </motion.div>
-                          
-                          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-9 w-9"
                               title="Edit Product"
+                              onClick={() => handleEditProduct(product)}
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
@@ -836,6 +822,17 @@ export default function ProductsPage() {
         isOpen={isAddProductDialogOpen}
         onClose={() => setIsAddProductDialogOpen(false)}
         onSuccess={fetchProducts}
+      />
+
+      {/* Edit Product Dialog */}
+      <EditProductDialog 
+        isOpen={isEditProductDialogOpen}
+        onClose={() => {
+          setIsEditProductDialogOpen(false);
+          setEditingProduct(null);
+        }}
+        onSuccess={fetchProducts}
+        product={editingProduct}
       />
 
       {/* Delete Product Dialog */}

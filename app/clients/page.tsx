@@ -46,7 +46,8 @@ import {
   serverTimestamp,
   Timestamp,
   getDoc,
-  deleteDoc
+  deleteDoc,
+  increment
 } from 'firebase/firestore';
 import { db } from '@/lib/firebaseClient';
 import { generateInvoicePDF } from "@/app/utils/generateInvoice";
@@ -341,6 +342,41 @@ export default function ClientsPage() {
         updatedAt: serverTimestamp(),
       });
 
+      // Update product stock quantities and sales count
+      const productUpdatePromises = order.items.map(async (item) => {
+        if (item.productId) {
+          try {
+            const productRef = doc(db, 'products', item.productId);
+            const productSnap = await getDoc(productRef);
+            
+            if (productSnap.exists()) {
+              const currentStock = productSnap.data().stock || 0;
+              const newStock = currentStock - item.quantity;
+              const currentSales = productSnap.data().sales || 0;
+              const newSales = currentSales + item.quantity;
+              
+              // Determine new status based on stock level
+              let newStatus = productSnap.data().status;
+              if (newStock <= 0) {
+                newStatus = "Out of Stock";
+              } else if (newStock <= 10 && newStatus !== "Arriving Soon") {
+                newStatus = "Low Stock";
+              }
+              
+              await updateDoc(productRef, {
+                stock: newStock,
+                sales: newSales,
+                status: newStatus,
+                updatedAt: serverTimestamp()
+              });
+            }
+          } catch (error) {
+            console.warn(`Failed to update product ${item.productId}:`, error);
+          }
+        }
+      });
+      await Promise.all(productUpdatePromises);
+
       await generateInvoicePDF({ ...invoiceData, id: invoiceDoc.id });
       await handleClientClick(selectedClient);
       await loadClients(); // Refresh pending counts
@@ -379,11 +415,11 @@ export default function ClientsPage() {
       });
     }
     
-    // Sort so clients with pending orders appear at the bottom
+    // Sort so clients with pending orders appear at the top
     return result.sort((a, b) => {
       const aPending = (a.pendingOrdersCount || 0) > 0 ? 1 : 0;
       const bPending = (b.pendingOrdersCount || 0) > 0 ? 1 : 0;
-      return aPending - bPending; // 0s first, 1s last
+      return bPending - aPending; // 1s first, 0s last
     });
   })();
 
@@ -485,7 +521,7 @@ export default function ClientsPage() {
                       <span className="font-medium">{order.subtotal.toFixed(2)} Dt</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Tax {(order.taxRate * 100).toFixed(1)}%:</span>
+                      <span>Tax {order.taxRate.toFixed(1)}%:</span>
                       <span className="font-medium">{order.taxAmount.toFixed(2)} Dt</span>
                     </div>
                     <div className="flex justify-between text-lg font-bold border-t pt-2">
@@ -584,7 +620,7 @@ export default function ClientsPage() {
                     <span>{selectedOrder.subtotal.toFixed(2)} Dt</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Tax ({(selectedOrder.taxRate * 100).toFixed(1)}%):</span>
+                    <span>Tax ({selectedOrder.taxRate.toFixed(1)}%):</span>
                     <span>{selectedOrder.taxAmount.toFixed(2)} Dt</span>
                   </div>
                   <div className="flex justify-between text-lg font-bold border-t pt-2">
